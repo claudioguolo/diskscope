@@ -1,4 +1,6 @@
-# Coletor de discos nao utilizados
+# noused_disc
+
+Coletor de discos nao utilizados para execucao via Red Hat Satellite.
 
 Projeto com duas partes:
 

@@ -108,7 +108,7 @@ def render_table(records: list[dict]) -> str:
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Coletor de Discos</title>
+    <title>noused_disc</title>
     <style>
       :root {{
         --bg: #f5f1e8;
@@ -231,7 +231,7 @@ def render_table(records: list[dict]) -> str:
   <body>
     <main class="page">
       <section class="hero">
-        <h1>Coletor de Discos</h1>
+        <h1>noused_disc</h1>
         <p class="subtitle">Visao consolidada dos dados enviados pelos scripts executados via Satellite.</p>
       </section>
       <section class="meta">
