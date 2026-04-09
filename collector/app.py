@@ -402,13 +402,13 @@ def render_table(
         position: sticky;
         top: 0;
         background: #f1e6d5;
-        font-size: 0.72rem;
+        font-size: 0.68rem;
         text-transform: uppercase;
         letter-spacing: 0.06em;
       }}
       td {{
-        font-size: 0.9rem;
-        line-height: 1.3;
+        font-size: 0.78rem;
+        line-height: 1.2;
       }}
       tr:hover td {{
         background: rgba(164, 74, 63, 0.05);
@@ -421,23 +421,23 @@ def render_table(
       }}
       .host-cell strong,
       .source-cell strong {{
-        font-size: 0.92rem;
+        font-size: 0.8rem;
       }}
       .host-cell span,
       .source-cell span,
       .subtle {{
         color: var(--muted);
-        font-size: 0.78rem;
+        font-size: 0.7rem;
       }}
       .inventory-cell .count {{
         font-weight: 700;
-        font-size: 0.95rem;
+        font-size: 0.8rem;
       }}
       .badge {{
         display: inline-block;
-        padding: 3px 8px;
+        padding: 2px 7px;
         border-radius: 999px;
-        font-size: 0.72rem;
+        font-size: 0.66rem;
         font-weight: 700;
       }}
       .badge.ok {{
