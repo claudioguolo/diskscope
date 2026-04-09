@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+
+case "$1" in
+    /dev/sda)
+        exit 0
+        ;;
+    /dev/sdb)
+        exit 2
+        ;;
+esac
+
+exit 2

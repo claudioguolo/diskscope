@@ -1,0 +1,19 @@
+services:
+  disk-collector:
+    build:
+      context: .
+      dockerfile: collector/Dockerfile
+    container_name: disk-collector
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      PORT: "${PORT:-8000}"
+      POST_PATH: "${POST_PATH:-/disk-alert}"
+      COLLECTOR_TOKEN: "${COLLECTOR_TOKEN:-SEU_TOKEN_AQUI}"
+      AUTH_HEADER_NAME: "${AUTH_HEADER_NAME:-Authorization}"
+      AUTH_HEADER_PREFIX: "${AUTH_HEADER_PREFIX:-Bearer}"
+      OUTPUT_FILE: "${OUTPUT_FILE:-/data/requests.jsonl}"
+      LOG_LEVEL: "${LOG_LEVEL:-INFO}"
+    volumes:
+      - ./data:/data

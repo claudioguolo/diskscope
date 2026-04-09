@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+
+if [ "$1" = "-dn" ]; then
+    printf 'sda disk\nsdb disk\n'
+    exit 0
+fi
+
+if [ "$1" = "-n" ] && [ "$2" = "-o" ] && [ "$3" = "NAME" ]; then
+    case "$4" in
+        /dev/sda)
+            printf 'sda\nsda1\n'
+            ;;
+        /dev/sdb)
+            printf 'sdb\n'
+            ;;
+    esac
+    exit 0
+fi
+
+if [ "$1" = "-n" ] && [ "$2" = "-o" ] && [ "$3" = "MOUNTPOINT" ]; then
+    case "$4" in
+        /dev/sda)
+            printf '/boot\n'
+            ;;
+        /dev/sdb)
+            printf '\n'
+            ;;
+    esac
+    exit 0
+fi
+
+exit 1

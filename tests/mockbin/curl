@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+
+output_file=""
+payload=""
+http_code="${MOCK_CURL_HTTP_CODE:-200}"
+exit_code="${MOCK_CURL_EXIT_CODE:-0}"
+
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --output)
+            output_file="$2"
+            shift 2
+            ;;
+        --data)
+            payload="$2"
+            shift 2
+            ;;
+        --write-out)
+            shift 2
+            ;;
+        *)
+            shift
+            ;;
+    esac
+done
+
+if [ -n "$output_file" ]; then
+    printf '{"result":"accepted"}' >"$output_file"
+fi
+
+if [ -n "${MOCK_CURL_CAPTURE:-}" ]; then
+    printf '%s\n' "$payload" >"$MOCK_CURL_CAPTURE"
+fi
+
+printf '%s' "$http_code"
+exit "$exit_code"
