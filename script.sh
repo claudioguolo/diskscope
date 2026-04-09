@@ -2,6 +2,7 @@
 
 set -u
 
+
 readonly SCRIPT_NAME="$(basename "$0")"
 readonly DEFAULT_CONNECT_TIMEOUT=10
 readonly DEFAULT_MAX_TIME=30
