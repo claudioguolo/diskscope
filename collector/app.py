@@ -62,6 +62,15 @@ def format_date_br(value: str) -> str:
     return value or "-"
 
 
+def translate_status_label(status: str) -> str:
+    normalized = (status or "").upper()
+    if normalized == "WARNING":
+        return "ATENCAO"
+    if normalized == "OK":
+        return "OK"
+    return status or "-"
+
+
 def clear_records() -> None:
     ensure_parent_dir(OUTPUT_FILE)
     with OUTPUT_FILE.open("w", encoding="utf-8"):
@@ -173,7 +182,7 @@ def build_csv(records: list[dict]) -> str:
                 "hostname": payload.get("hostname", ""),
                 "ip": payload.get("ip", ""),
                 "os": payload.get("os", ""),
-                "status": payload.get("status", ""),
+                "status": translate_status_label(str(payload.get("status", ""))),
                 "detection_state": payload.get("detection_state", ""),
                 "unused_disks_count": payload.get("unused_disks_count", ""),
                 "unused_capacity_total_bytes": payload.get("unused_capacity_total_bytes", ""),
@@ -224,7 +233,7 @@ def render_table(
 
         badge_class = "warning" if status.upper() == "WARNING" else "ok"
         status_html = (
-            f'<span class="badge {escape(badge_class)}">{escape(status)}</span>'
+            f'<span class="badge {escape(badge_class)}">{escape(translate_status_label(status))}</span>'
         )
         detection_html = f'<span class="subtle">{escape(detection_state)}</span>'
         host_block = """
@@ -266,7 +275,6 @@ def render_table(
               <td>{status}</td>
               <td>{detection_state}</td>
               <td>{inventory}</td>
-              <td>{timestamp}</td>
             </tr>
             """.format(
                 source=source_block,
@@ -275,12 +283,11 @@ def render_table(
                 status=status_html,
                 detection_state=detection_html,
                 inventory=inventory_block,
-                timestamp=escape(str(payload.get("timestamp", "-"))),
             )
         )
 
     tbody = "\n".join(rows) if rows else (
-        '<tr><td colspan="7" class="empty">Nenhum dado coletado ate o momento.</td></tr>'
+        '<tr><td colspan="6" class="empty">Nenhum dado coletado ate o momento.</td></tr>'
     )
 
     total_visible = len(records)
@@ -520,7 +527,7 @@ def render_table(
           <strong>{total_visible}</strong>
         </div>
         <div class="card">
-          <span>Warnings</span>
+          <span>Hosts com atencao</span>
           <strong>{warning_count}</strong>
         </div>
         <div class="card">
@@ -538,7 +545,7 @@ def render_table(
       </section>
       <section class="toolbar">
         <a class="{all_link_class}" href="{all_href}">Todos <strong>{all_count}</strong></a>
-        <a class="{warning_link_class}" href="{warning_href}">Somente WARNING <strong>{warning_count}</strong></a>
+        <a class="{warning_link_class}" href="{warning_href}">Somente com atencao <strong>{warning_count}</strong></a>
         <a class="filter-link export" href="{csv_href}">Exportar CSV</a>
       </section>
       <form class="toolbar-form" method="get" action="/">
@@ -561,7 +568,6 @@ def render_table(
               <th>Status</th>
               <th>Coleta</th>
               <th>Discos</th>
-              <th>Timestamp do host</th>
             </tr>
           </thead>
           <tbody>

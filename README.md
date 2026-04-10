@@ -76,7 +76,7 @@ export LOG_ENABLED="0"
 O script imprime uma linha final em formato simples, adequada para leitura no resultado do job:
 
 ```text
-RESULT=WARNING UNUSED_DISKS=/dev/sdb UNUSED_CAPACITY=53.7 GB HTTP_CODE=200 DETECTION_STATE=ok
+RESULT=ATENCAO UNUSED_DISKS=/dev/sdb UNUSED_CAPACITY=53.7 GB HTTP_CODE=200 DETECTION_STATE=ok
 ```
 
 ## Coletor containerizado

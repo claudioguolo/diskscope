@@ -2,7 +2,7 @@
   "hostname": "b550m-ds3h",
   "ip": "unknown",
   "os": "Ubuntu 25.10",
-  "timestamp": "2026-04-10T11:41:10Z",
+  "timestamp": "2026-04-10T14:05:21Z",
   "status": "WARNING",
   "detection_state": "ok",
   "unused_disks": ["/dev/sdb"],

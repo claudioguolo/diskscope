@@ -107,6 +107,14 @@ format_bytes() {
     printf '%s.%s GB' "$int_part" "$frac_part"
 }
 
+format_status_label() {
+    case "${1:-}" in
+        WARNING) printf 'ATENCAO' ;;
+        OK) printf 'OK' ;;
+        *) printf '%s' "${1:-UNKNOWN}" ;;
+    esac
+}
+
 build_collector_url() {
     local path="$COLLECTOR_PATH"
 
@@ -315,7 +323,7 @@ send_payload() {
 }
 
 main() {
-    local collector_url status detection_state payload unused_csv="none" total_capacity_human="0 B"
+    local collector_url status status_label detection_state payload unused_csv="none" total_capacity_human="0 B"
 
     UNUSED_DISKS=()
     UNUSED_DISK_DETAILS=()
@@ -341,6 +349,7 @@ main() {
     else
         status="OK"
     fi
+    status_label="$(format_status_label "$status")"
 
     payload="$(build_payload "$status" "$detection_state")"
 
@@ -349,7 +358,7 @@ main() {
     fi
 
     printf 'RESULT=%s UNUSED_DISKS=%s UNUSED_CAPACITY=%s HTTP_CODE=%s DETECTION_STATE=%s\n' \
-        "$status" "$unused_csv" "$total_capacity_human" "$HTTP_CODE" "$detection_state"
+        "$status_label" "$unused_csv" "$total_capacity_human" "$HTTP_CODE" "$detection_state"
     exit 0
 }
 
