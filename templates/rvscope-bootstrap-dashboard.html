@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ APP_NAME }} | {{ PAGE_TITLE }}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600&family=Source+Sans+3:wght@400;600&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="./ui/rvscope-bootstrap-theme.css">
+</head>
+<body>
+<main class="container rv-page py-4">
+    <section class="rv-hero p-4 p-lg-4 mb-4">
+        <div class="d-flex flex-column flex-lg-row justify-content-between gap-3 align-items-lg-start">
+            <div>
+                <h1 class="display-6 mb-2">{{ APP_NAME }}</h1>
+                <p class="mb-0 text-body-secondary">{{ APP_SUBTITLE }}</p>
+            </div>
+            <div class="d-flex flex-wrap gap-2">
+                <a class="btn btn-outline-light" href="#">{{ ACTION_1 }}</a>
+                <a class="btn btn-outline-light" href="#">{{ ACTION_2 }}</a>
+            </div>
+        </div>
+    </section>
+
+    <section class="row g-3 mb-4">
+        <div class="col-6 col-lg-3">
+            <div class="card rv-card rv-metric h-100">
+                <div class="card-body">
+                    <span class="rv-metric-label">Registros</span>
+                    <strong class="rv-metric-value d-block mt-1">128</strong>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-lg-3">
+            <div class="card rv-card rv-metric h-100">
+                <div class="card-body">
+                    <span class="rv-metric-label">Warnings</span>
+                    <strong class="rv-metric-value d-block mt-1">9</strong>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-lg-3">
+            <div class="card rv-card rv-metric h-100">
+                <div class="card-body">
+                    <span class="rv-metric-label">Fontes</span>
+                    <strong class="rv-metric-value d-block mt-1">12</strong>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-lg-3">
+            <div class="card rv-card rv-metric h-100">
+                <div class="card-body">
+                    <span class="rv-metric-label">Atualizado</span>
+                    <strong class="rv-metric-value d-block mt-1">10:43</strong>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="card rv-card mb-3">
+        <div class="card-body">
+            <div class="rv-toolbar d-flex flex-wrap gap-2 mb-3">
+                <a class="btn btn-primary" href="#">Todos</a>
+                <a class="btn btn-light rv-soft-primary" href="#">Somente warning</a>
+                <span class="ms-auto"></span>
+                <a class="btn btn-outline-secondary" href="#">Exportar CSV</a>
+            </div>
+
+            <form class="row g-2 align-items-center rv-toolbar">
+                <div class="col-12 col-md-auto">
+                    <input type="date" class="form-control" name="date_from">
+                </div>
+                <div class="col-12 col-md-auto">
+                    <input type="date" class="form-control" name="date_to">
+                </div>
+                <div class="col-12 col-md-auto">
+                    <select class="form-select" name="status">
+                        <option>Todos</option>
+                        <option>Warning</option>
+                        <option>OK</option>
+                    </select>
+                </div>
+                <div class="col-12 col-md-auto">
+                    <button class="btn btn-primary" type="submit">Aplicar filtros</button>
+                </div>
+                <div class="col-12 col-md-auto">
+                    <a class="btn btn-outline-secondary" href="#">Limpar</a>
+                </div>
+                <div class="col-12 col-md-auto ms-md-auto">
+                    <button class="btn btn-light rv-soft-danger" type="button">Limpar base</button>
+                </div>
+            </form>
+        </div>
+    </section>
+
+    <section class="card rv-card">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-striped table-hover align-middle mb-0 rv-table">
+                    <thead>
+                        <tr>
+                            <th>Coleta</th>
+                            <th>Origem</th>
+                            <th>Categoria</th>
+                            <th>Status</th>
+                            <th>Resumo</th>
+                            <th>Atualizado</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>
+                                <span class="rv-cell-title">2026-04-10</span>
+                                <span class="rv-cell-meta">08:30 UTC</span>
+                            </td>
+                            <td>
+                                <span class="rv-cell-title">srv-app-01</span>
+                                <span class="rv-cell-meta">10.10.10.14</span>
+                            </td>
+                            <td>
+                                <span class="rv-cell-title">Inventario</span>
+                                <span class="rv-cell-meta">Coleta automatica</span>
+                            </td>
+                            <td><span class="badge text-bg-warning rv-badge">WARNING</span></td>
+                            <td>
+                                <span class="rv-cell-title">2 itens relevantes</span>
+                                <span class="rv-cell-meta">/dev/sdb, /dev/sdc</span>
+                            </td>
+                            <td>
+                                <span class="rv-cell-title">2026-04-10T08:30:00Z</span>
+                                <span class="rv-cell-meta">origem do host</span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>
+                                <span class="rv-cell-title">2026-04-10</span>
+                                <span class="rv-cell-meta">08:31 UTC</span>
+                            </td>
+                            <td>
+                                <span class="rv-cell-title">srv-db-02</span>
+                                <span class="rv-cell-meta">10.10.10.22</span>
+                            </td>
+                            <td>
+                                <span class="rv-cell-title">Relatorio</span>
+                                <span class="rv-cell-meta">Sincronizacao</span>
+                            </td>
+                            <td><span class="badge text-bg-success rv-badge">OK</span></td>
+                            <td>
+                                <span class="rv-cell-title">Sem alertas</span>
+                                <span class="rv-cell-meta">Nenhum item pendente</span>
+                            </td>
+                            <td>
+                                <span class="rv-cell-title">2026-04-10T08:31:00Z</span>
+                                <span class="rv-cell-meta">origem do host</span>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="rv-empty d-none">
+                Nenhum dado disponivel.
+            </div>
+        </div>
+    </section>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

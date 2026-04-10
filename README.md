@@ -1,4 +1,4 @@
-# noused_disc
+# DiskScope
 
 Coletor de discos nao utilizados para execucao via Red Hat Satellite.
 
@@ -76,7 +76,7 @@ export LOG_ENABLED="0"
 O script imprime uma linha final em formato simples, adequada para leitura no resultado do job:
 
 ```text
-RESULT=WARNING UNUSED_DISKS=/dev/sdb HTTP_CODE=200 DETECTION_STATE=ok
+RESULT=WARNING UNUSED_DISKS=/dev/sdb UNUSED_CAPACITY=53.7 GB HTTP_CODE=200 DETECTION_STATE=ok
 ```
 
 ## Coletor containerizado
@@ -115,6 +115,13 @@ Cada linha contem um JSON com:
 - horario de recebimento
 - IP remoto
 - payload original enviado pelo script
+- lista de discos nao utilizados com capacidade por disco
+- soma total de capacidade nao utilizada por host
+
+Na interface web, o painel tambem mostra:
+
+- percentual de hosts com ocorrencia de discos nao utilizados
+- capacidade total nao utilizada considerando os registros filtrados
 
 ## Testes locais
 
@@ -123,6 +130,25 @@ Teste rapido do script com mocks:
 ```bash
 bash tests/run_mock_test.sh
 ```
+
+## Template visual
+
+Este repositorio tambem inclui templates de tema reutilizavel inspirados no projeto `rvscope`:
+
+- [rvscope-theme.css](/home/claudio/Docker/coletor_disco/ui/rvscope-theme.css)
+- [rvscope-theme-dashboard.html](/home/claudio/Docker/coletor_disco/templates/rvscope-theme-dashboard.html)
+- [rvscope-bootstrap-theme.css](/home/claudio/Docker/coletor_disco/ui/rvscope-bootstrap-theme.css)
+- [rvscope-bootstrap-dashboard.html](/home/claudio/Docker/coletor_disco/templates/rvscope-bootstrap-dashboard.html)
+- [THEME_GUIDE.md](/home/claudio/Docker/coletor_disco/ui/THEME_GUIDE.md)
+
+Ele foi pensado para dashboards de coleta e relatorios, com:
+
+- header hero padronizado
+- cards de metricas
+- barras de filtro
+- tabela compacta
+- badges de status
+- versao pronta em Bootstrap para reaproveitamento rapido
 
 ## Publicacao no GitHub
 

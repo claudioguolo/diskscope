@@ -2,10 +2,13 @@
   "hostname": "b550m-ds3h",
   "ip": "unknown",
   "os": "Ubuntu 25.10",
-  "timestamp": "2026-04-09T22:20:48Z",
+  "timestamp": "2026-04-10T11:41:10Z",
   "status": "WARNING",
   "detection_state": "ok",
   "unused_disks": ["/dev/sdb"],
+  "unused_disks_detail": [{"name":"/dev/sdb","size_bytes":53687091200,"size_human":"53.7 GB"}],
   "unused_disks_count": 1,
+  "unused_capacity_total_bytes": 53687091200,
+  "unused_capacity_total_human": "53.7 GB",
   "detection_errors": []
 }

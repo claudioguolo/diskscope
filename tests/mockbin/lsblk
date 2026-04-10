@@ -1,6 +1,18 @@
 #!/usr/bin/env bash
 
 if [ "$1" = "-dn" ]; then
+    if [ "$2" = "-b" ] && [ "$3" = "-o" ] && [ "$4" = "SIZE" ]; then
+        case "$5" in
+            /dev/sda)
+                printf '10737418240\n'
+                ;;
+            /dev/sdb)
+                printf '53687091200\n'
+                ;;
+        esac
+        exit 0
+    fi
+
     printf 'sda disk\nsdb disk\n'
     exit 0
 fi

@@ -16,7 +16,9 @@ bash "${ROOT_DIR}/script.sh" >"${OUTPUT_FILE}"
 
 grep -q 'RESULT=WARNING' "${OUTPUT_FILE}"
 grep -q 'UNUSED_DISKS=/dev/sdb' "${OUTPUT_FILE}"
+grep -q 'UNUSED_CAPACITY=53.7 GB' "${OUTPUT_FILE}"
 grep -q '"unused_disks_count": 1' "${CAPTURE_FILE}"
 grep -q '"status": "WARNING"' "${CAPTURE_FILE}"
+grep -q '"unused_capacity_total_bytes": 53687091200' "${CAPTURE_FILE}"
 
 printf 'mock test ok\n'

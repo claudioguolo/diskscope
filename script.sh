@@ -60,6 +60,20 @@ json_escape() {
     printf '%s' "$value"
 }
 
+join_json_array_raw() {
+    local result=""
+    local item
+
+    for item in "$@"; do
+        if [ -n "$result" ]; then
+            result="${result},"
+        fi
+        result="${result}${item}"
+    done
+
+    printf '[%s]' "$result"
+}
+
 join_json_array() {
     local result=""
     local item
@@ -72,6 +86,25 @@ join_json_array() {
     done
 
     printf '[%s]' "$result"
+}
+
+format_bytes() {
+    local bytes="${1:-0}"
+
+    if ! [[ "$bytes" =~ ^[0-9]+$ ]]; then
+        printf '0.0 GB'
+        return 0
+    fi
+
+    local deci_gb
+    local int_part
+    local frac_part
+
+    deci_gb=$((((bytes * 10) + 500000000) / 1000000000))
+    int_part=$((deci_gb / 10))
+    frac_part=$((deci_gb % 10))
+
+    printf '%s.%s GB' "$int_part" "$frac_part"
 }
 
 build_collector_url() {
@@ -143,6 +176,18 @@ disk_is_unused() {
     return 0
 }
 
+get_disk_size_bytes() {
+    local disk="$1"
+    local size
+
+    size="$(lsblk -dn -b -o SIZE "$disk" 2>/dev/null | awk 'NR==1 {print $1}')"
+    if [[ "$size" =~ ^[0-9]+$ ]]; then
+        printf '%s' "$size"
+    else
+        printf '0'
+    fi
+}
+
 collect_metadata() {
     HOSTNAME_FQDN="$(hostname -f 2>/dev/null || hostname 2>/dev/null || printf 'unknown-host')"
     IP_ADDR="$(hostname -I 2>/dev/null | awk '{print $1}')"
@@ -154,9 +199,11 @@ collect_metadata() {
 }
 
 collect_unused_disks() {
-    local line name type disk
+    local line name type disk size_bytes size_human
 
     UNUSED_DISKS=()
+    UNUSED_DISK_DETAILS=()
+    UNUSED_CAPACITY_TOTAL_BYTES=0
 
     if ! command_exists lsblk; then
         DETECTION_ERRORS+=("lsblk_not_found")
@@ -172,7 +219,11 @@ collect_unused_disks() {
         disk="/dev/$name"
 
         if disk_is_unused "$disk"; then
+            size_bytes="$(get_disk_size_bytes "$disk")"
+            size_human="$(format_bytes "$size_bytes")"
             UNUSED_DISKS+=("$disk")
+            UNUSED_DISK_DETAILS+=("{\"name\":\"$(json_escape "$disk")\",\"size_bytes\":${size_bytes},\"size_human\":\"$(json_escape "$size_human")\"}")
+            UNUSED_CAPACITY_TOTAL_BYTES=$((UNUSED_CAPACITY_TOTAL_BYTES + size_bytes))
             log "INFO" "Disco nao utilizado identificado: $disk"
         fi
     done < <(lsblk -dn -e 7,11 -o NAME,TYPE 2>/dev/null)
@@ -181,10 +232,12 @@ collect_unused_disks() {
 build_payload() {
     local status="$1"
     local detection_state="$2"
-    local unused_json detection_json
+    local unused_json detection_json details_json total_human
 
     unused_json="$(join_json_array "${UNUSED_DISKS[@]}")"
     detection_json="$(join_json_array "${DETECTION_ERRORS[@]}")"
+    details_json="$(join_json_array_raw "${UNUSED_DISK_DETAILS[@]}")"
+    total_human="$(format_bytes "$UNUSED_CAPACITY_TOTAL_BYTES")"
 
     cat <<EOF
 {
@@ -195,7 +248,10 @@ build_payload() {
   "status": "$(json_escape "$status")",
   "detection_state": "$(json_escape "$detection_state")",
   "unused_disks": $unused_json,
+  "unused_disks_detail": $details_json,
   "unused_disks_count": ${#UNUSED_DISKS[@]},
+  "unused_capacity_total_bytes": ${UNUSED_CAPACITY_TOTAL_BYTES},
+  "unused_capacity_total_human": "$(json_escape "$total_human")",
   "detection_errors": $detection_json
 }
 EOF
@@ -259,10 +315,12 @@ send_payload() {
 }
 
 main() {
-    local collector_url status detection_state payload unused_csv="none"
+    local collector_url status detection_state payload unused_csv="none" total_capacity_human="0 B"
 
     UNUSED_DISKS=()
+    UNUSED_DISK_DETAILS=()
     DETECTION_ERRORS=()
+    UNUSED_CAPACITY_TOTAL_BYTES=0
     CURL_RC=0
     HTTP_CODE=0
 
@@ -279,6 +337,7 @@ main() {
     if [ "${#UNUSED_DISKS[@]}" -gt 0 ]; then
         status="WARNING"
         unused_csv="$(IFS=,; printf '%s' "${UNUSED_DISKS[*]}")"
+        total_capacity_human="$(format_bytes "$UNUSED_CAPACITY_TOTAL_BYTES")"
     else
         status="OK"
     fi
@@ -289,8 +348,8 @@ main() {
         exit 1
     fi
 
-    printf 'RESULT=%s UNUSED_DISKS=%s HTTP_CODE=%s DETECTION_STATE=%s\n' \
-        "$status" "$unused_csv" "$HTTP_CODE" "$detection_state"
+    printf 'RESULT=%s UNUSED_DISKS=%s UNUSED_CAPACITY=%s HTTP_CODE=%s DETECTION_STATE=%s\n' \
+        "$status" "$unused_csv" "$total_capacity_human" "$HTTP_CODE" "$detection_state"
     exit 0
 }
 

@@ -38,6 +38,16 @@ def utc_now() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+def format_bytes(value: int | str | None) -> str:
+    try:
+        size = int(value or 0)
+    except (TypeError, ValueError):
+        size = 0
+
+    gb_value = size / 1_000_000_000
+    return f"{gb_value:.1f} GB"
+
+
 def extract_collection_date(record: dict) -> str:
     payload = record.get("payload", {})
     timestamp = str(payload.get("timestamp", "") or record.get("received_at", ""))
@@ -134,6 +144,8 @@ def build_csv(records: list[dict]) -> str:
             "status",
             "detection_state",
             "unused_disks_count",
+            "unused_capacity_total_bytes",
+            "unused_capacity_total_human",
             "unused_disks",
             "timestamp",
         ],
@@ -158,6 +170,8 @@ def build_csv(records: list[dict]) -> str:
                 "status": payload.get("status", ""),
                 "detection_state": payload.get("detection_state", ""),
                 "unused_disks_count": payload.get("unused_disks_count", ""),
+                "unused_capacity_total_bytes": payload.get("unused_capacity_total_bytes", ""),
+                "unused_capacity_total_human": payload.get("unused_capacity_total_human", ""),
                 "unused_disks": unused_disks_text,
                 "timestamp": payload.get("timestamp", ""),
             }
@@ -181,10 +195,26 @@ def render_table(
         status = str(payload.get("status", "-"))
         detection_state = str(payload.get("detection_state", "-"))
         unused_disks = payload.get("unused_disks", [])
+        unused_disks_detail = payload.get("unused_disks_detail", [])
+        total_capacity_human = str(
+            payload.get("unused_capacity_total_human")
+            or format_bytes(payload.get("unused_capacity_total_bytes", 0))
+        )
         if isinstance(unused_disks, list):
             unused_disks_text = ", ".join(str(item) for item in unused_disks) or "-"
         else:
             unused_disks_text = str(unused_disks) or "-"
+
+        if isinstance(unused_disks_detail, list) and unused_disks_detail:
+            detail_parts = []
+            for item in unused_disks_detail:
+                if not isinstance(item, dict):
+                    continue
+                detail_parts.append(
+                    f"{item.get('name', '-')} ({item.get('size_human') or format_bytes(item.get('size_bytes', 0))})"
+                )
+            if detail_parts:
+                unused_disks_text = ", ".join(detail_parts)
 
         badge_class = "warning" if status.upper() == "WARNING" else "ok"
         status_html = (
@@ -212,10 +242,12 @@ def render_table(
         inventory_block = """
         <div class="inventory-cell">
           <span class="count">{unused_count}</span>
+          <span class="subtle">{total_capacity}</span>
           <span class="subtle">{unused_disks}</span>
         </div>
         """.format(
             unused_count=escape(str(payload.get("unused_disks_count", "-"))),
+            total_capacity=escape(total_capacity_human),
             unused_disks=escape(unused_disks_text),
         )
 
@@ -246,6 +278,13 @@ def render_table(
     )
 
     total_visible = len(records)
+    unused_capacity_total = sum(
+        int(record.get("payload", {}).get("unused_capacity_total_bytes", 0) or 0)
+        for record in records
+    )
+    occurrence_percent = 0.0
+    if all_count > 0:
+        occurrence_percent = (warning_count / all_count) * 100
     all_link_class = "filter-link active" if status_filter != "warning" else "filter-link"
     warning_link_class = "filter-link active" if status_filter == "warning" else "filter-link"
     all_href = build_query_string("all", date_from, date_to)
@@ -258,7 +297,7 @@ def render_table(
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>noused_disc</title>
+    <title>DiskScope</title>
     <style>
       :root {{
         --bg: #f5f1e8;
@@ -466,7 +505,7 @@ def render_table(
   <body>
     <main class="page">
       <section class="hero">
-        <h1>noused_disc</h1>
+        <h1>DiskScope</h1>
         <p class="subtitle">Visao consolidada dos dados enviados pelos scripts executados via Satellite.</p>
       </section>
       <section class="meta">
@@ -477,6 +516,14 @@ def render_table(
         <div class="card">
           <span>Warnings</span>
           <strong>{warning_count}</strong>
+        </div>
+        <div class="card">
+          <span>% hosts com ocorrencia</span>
+          <strong>{occurrence_percent:.1f}%</strong>
+        </div>
+        <div class="card">
+          <span>Capacidade nao usada</span>
+          <strong>{escape(format_bytes(unused_capacity_total))}</strong>
         </div>
         <div class="card">
           <span>Atualizado em</span>
@@ -634,7 +681,7 @@ class CollectorHandler(BaseHTTPRequestHandler):
         response = csv_content.encode("utf-8")
         self.send_response(status.value)
         self.send_header("Content-Type", "text/csv; charset=utf-8")
-        self.send_header("Content-Disposition", 'attachment; filename="noused_disc.csv"')
+        self.send_header("Content-Disposition", 'attachment; filename="diskscope.csv"')
         self.send_header("Content-Length", str(len(response)))
         self.end_headers()
         self.wfile.write(response)

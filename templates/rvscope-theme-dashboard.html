@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ APP_NAME }} | {{ PAGE_TITLE }}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600&family=Source+Sans+3:wght@400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="./ui/rvscope-theme.css">
+</head>
+<body>
+<main class="page-shell">
+    <header class="app-header">
+        <div class="app-header-row">
+            <div>
+                <h1 class="app-title">{{ APP_NAME }}</h1>
+                <p class="app-subtitle">{{ APP_SUBTITLE }}</p>
+            </div>
+            <div class="app-actions">
+                <a class="btn btn-soft" href="#">{{ ACTION_1 }}</a>
+                <a class="btn btn-soft" href="#">{{ ACTION_2 }}</a>
+            </div>
+        </div>
+    </header>
+
+    <section class="metrics-grid">
+        <article class="app-card metric-card">
+            <span class="metric-label">Registros</span>
+            <strong class="metric-value">128</strong>
+        </article>
+        <article class="app-card metric-card">
+            <span class="metric-label">Warnings</span>
+            <strong class="metric-value">9</strong>
+        </article>
+        <article class="app-card metric-card">
+            <span class="metric-label">Atualizado</span>
+            <strong class="metric-value">10:43</strong>
+        </article>
+    </section>
+
+    <section class="section-stack">
+        <article class="app-card app-card-body">
+            <div class="toolbar">
+                <a class="btn btn-brand" href="#">Todos</a>
+                <a class="btn btn-soft" href="#">Somente warning</a>
+                <span class="toolbar-spacer"></span>
+                <a class="btn btn-outline" href="#">Exportar CSV</a>
+            </div>
+
+            <form class="toolbar-form" method="get">
+                <input class="date-input" type="date" name="date_from">
+                <input class="date-input" type="date" name="date_to">
+                <select class="select" name="status">
+                    <option>Todos</option>
+                    <option>Warning</option>
+                    <option>OK</option>
+                </select>
+                <button class="btn btn-brand" type="submit">Aplicar filtros</button>
+                <a class="btn btn-outline" href="#">Limpar</a>
+                <button class="btn btn-danger-soft" type="button">Limpar base</button>
+            </form>
+        </article>
+
+        <article class="app-card table-card">
+            <div class="table-wrap">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Coleta</th>
+                            <th>Origem</th>
+                            <th>Categoria</th>
+                            <th>Status</th>
+                            <th>Resumo</th>
+                            <th>Atualizado</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>
+                                <span class="cell-title">2026-04-10</span>
+                                <span class="cell-meta">08:30 UTC</span>
+                            </td>
+                            <td>
+                                <span class="cell-title">srv-app-01</span>
+                                <span class="cell-meta">10.10.10.14</span>
+                            </td>
+                            <td>
+                                <span class="cell-title">Inventario</span>
+                                <span class="cell-meta">Coleta automatica</span>
+                            </td>
+                            <td><span class="badge badge-warning">WARNING</span></td>
+                            <td>
+                                <span class="cell-title">2 itens relevantes</span>
+                                <span class="cell-meta">/dev/sdb, /dev/sdc</span>
+                            </td>
+                            <td>
+                                <span class="cell-title">2026-04-10T08:30:00Z</span>
+                                <span class="cell-meta">origem do host</span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>
+                                <span class="cell-title">2026-04-10</span>
+                                <span class="cell-meta">08:31 UTC</span>
+                            </td>
+                            <td>
+                                <span class="cell-title">srv-db-02</span>
+                                <span class="cell-meta">10.10.10.22</span>
+                            </td>
+                            <td>
+                                <span class="cell-title">Relatorio</span>
+                                <span class="cell-meta">Sincronizacao</span>
+                            </td>
+                            <td><span class="badge badge-ok">OK</span></td>
+                            <td>
+                                <span class="cell-title">Sem alertas</span>
+                                <span class="cell-meta">Nenhum item pendente</span>
+                            </td>
+                            <td>
+                                <span class="cell-title">2026-04-10T08:31:00Z</span>
+                                <span class="cell-meta">origem do host</span>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </article>
+    </section>
+</main>
+</body>
+</html>
