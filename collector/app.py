@@ -106,12 +106,6 @@ def translate_status_label(status: str) -> str:
     return status or "-"
 
 
-def clear_records() -> None:
-    ensure_parent_dir(OUTPUT_FILE)
-    with OUTPUT_FILE.open("w", encoding="utf-8"):
-        pass
-
-
 def load_records() -> list[dict]:
     if not OUTPUT_FILE.exists():
         return []
@@ -426,10 +420,6 @@ def render_table(
         font-weight: 600;
         cursor: pointer;
       }}
-      .toolbar-form .danger {{
-        border-color: rgba(164, 74, 63, 0.3);
-        background: rgba(164, 74, 63, 0.12);
-      }}
       .filter-link {{
         display: inline-flex;
         align-items: center;
@@ -610,9 +600,6 @@ def render_table(
         <button type="submit">Filtrar por data</button>
         <a href="{clear_filters_href}">Limpar filtros</a>
       </form>
-      <form class="toolbar-form" method="post" action="/admin/clear" onsubmit="return confirm('Limpar toda a base de dados coletada?');">
-        <button class="danger" type="submit">Limpar base de dados</button>
-      </form>
       <p class="table-note">A tabela abaixo exibe todos os registros retornados pelo filtro atual, sem paginacao.</p>
       <section class="table-wrap">
         <table>
@@ -690,12 +677,6 @@ class CollectorHandler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:
         if self.path != POST_PATH:
-            if self.path == "/admin/clear":
-                clear_records()
-                LOGGER.warning("Collected data cleared from UI by %s", self.client_address[0])
-                self.redirect("/")
-                return
-
             self.respond_json(HTTPStatus.NOT_FOUND, {"error": "path_not_found"})
             return
 
@@ -803,10 +784,6 @@ class CollectorHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(response)
 
-    def redirect(self, location: str) -> None:
-        self.send_response(HTTPStatus.SEE_OTHER.value)
-        self.send_header("Location", location)
-        self.end_headers()
 
 
 def main() -> None:
