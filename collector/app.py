@@ -202,7 +202,7 @@ def build_csv(records: list[dict]) -> str:
     )
     writer.writeheader()
 
-    for record in records:
+    for index, record in enumerate(records, start=1):
         payload = record.get("payload", {})
         unused_disks = payload.get("unused_disks", [])
         if isinstance(unused_disks, list):
@@ -290,27 +290,37 @@ def render_table(
         rows.append(
             """
             <tr>
-              <td>{source}</td>
-              <td>{host}</td>
-              <td>{ip_addr}</td>
-              <td>{os_name}</td>
-              <td>{status}</td>
-              <td>{detection_state}</td>
-              <td>{inventory}</td>
+              <td data-sort-value="{row_number_value}">{row_number}</td>
+              <td data-sort-value="{received_value}">{source}</td>
+              <td data-sort-value="{hostname_value}">{host}</td>
+              <td data-sort-value="{ip_value}">{ip_addr}</td>
+              <td data-sort-value="{os_value}">{os_name}</td>
+              <td data-sort-value="{status_value}">{status}</td>
+              <td data-sort-value="{detection_value}">{detection_state}</td>
+              <td data-sort-value="{inventory_value}">{inventory}</td>
             </tr>
             """.format(
+                row_number=escape(str(index)),
+                row_number_value=escape(str(index)),
+                received_value=escape(str(record.get("received_at", "-"))),
                 source=source_block,
+                hostname_value=escape(str(payload.get("hostname", "-"))),
                 host=host_block,
+                ip_value=escape(str(payload.get("ip", "-"))),
                 ip_addr=escape(str(payload.get("ip", "-"))),
+                os_value=escape(abbreviate_os_name(str(payload.get("os", "-")))),
                 os_name=escape(abbreviate_os_name(str(payload.get("os", "-")))),
+                status_value=escape(translate_status_label(status)),
                 status=status_html,
+                detection_value=escape(detection_state),
                 detection_state=detection_html,
+                inventory_value=escape(unused_disks_text),
                 inventory=inventory_block,
             )
         )
 
     tbody = "\n".join(rows) if rows else (
-        '<tr><td colspan="7" class="empty">Nenhum dado coletado ate o momento.</td></tr>'
+        '<tr><td colspan="8" class="empty">Nenhum dado coletado ate o momento.</td></tr>'
     )
 
     total_visible = len(records)
@@ -462,10 +472,15 @@ def render_table(
         border-radius: 16px;
         box-shadow: 0 16px 36px rgba(73, 47, 32, 0.1);
       }}
+      .table-note {{
+        margin: 0 0 8px;
+        color: var(--muted);
+        font-size: 0.74rem;
+      }}
       table {{
         width: 100%;
         border-collapse: collapse;
-        min-width: 980px;
+        min-width: 1040px;
       }}
       th, td {{
         padding: 10px 12px;
@@ -480,6 +495,23 @@ def render_table(
         font-size: 0.68rem;
         text-transform: uppercase;
         letter-spacing: 0.06em;
+      }}
+      th.sortable {{
+        cursor: pointer;
+        user-select: none;
+      }}
+      th.sortable::after {{
+        content: " \\2195";
+        color: var(--muted);
+        font-size: 0.62rem;
+      }}
+      th.sortable.sorted-asc::after {{
+        content: " \\2191";
+        color: var(--text);
+      }}
+      th.sortable.sorted-desc::after {{
+        content: " \\2193";
+        color: var(--text);
       }}
       td {{
         font-size: 0.78rem;
@@ -581,25 +613,74 @@ def render_table(
       <form class="toolbar-form" method="post" action="/admin/clear" onsubmit="return confirm('Limpar toda a base de dados coletada?');">
         <button class="danger" type="submit">Limpar base de dados</button>
       </form>
+      <p class="table-note">A tabela abaixo exibe todos os registros retornados pelo filtro atual, sem paginacao.</p>
       <section class="table-wrap">
         <table>
           <thead>
             <tr>
-              <th>Recebimento</th>
-              <th>Host</th>
-              <th>IP</th>
-              <th>Sistema</th>
-              <th>Status</th>
-              <th>Coleta</th>
-              <th>Discos</th>
+              <th class="sortable">#</th>
+              <th class="sortable">Recebimento</th>
+              <th class="sortable">Host</th>
+              <th class="sortable">IP</th>
+              <th class="sortable">Sistema</th>
+              <th class="sortable">Status</th>
+              <th class="sortable">Coleta</th>
+              <th class="sortable">Discos</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody id="records-table-body">
             {tbody}
           </tbody>
         </table>
       </section>
     </main>
+    <script>
+      (function () {{
+        const tableBody = document.getElementById("records-table-body");
+        if (!tableBody) {{
+          return;
+        }}
+
+        const headers = Array.from(document.querySelectorAll("th.sortable"));
+        let currentColumn = -1;
+        let currentDirection = "asc";
+
+        function compareValues(a, b, direction) {{
+          const aNum = Number(a);
+          const bNum = Number(b);
+          let result;
+
+          if (!Number.isNaN(aNum) && !Number.isNaN(bNum)) {{
+            result = aNum - bNum;
+          }} else {{
+            result = a.localeCompare(b, "pt-BR", {{ numeric: true, sensitivity: "base" }});
+          }}
+
+          return direction === "asc" ? result : -result;
+        }}
+
+        headers.forEach((header, index) => {{
+          header.addEventListener("click", () => {{
+            const direction = currentColumn === index && currentDirection === "asc" ? "desc" : "asc";
+            const rows = Array.from(tableBody.querySelectorAll("tr"));
+
+            rows.sort((rowA, rowB) => {{
+              const cellA = rowA.children[index];
+              const cellB = rowB.children[index];
+              const valueA = (cellA.dataset.sortValue || cellA.textContent || "").trim();
+              const valueB = (cellB.dataset.sortValue || cellB.textContent || "").trim();
+              return compareValues(valueA, valueB, direction);
+            }});
+
+            rows.forEach((row) => tableBody.appendChild(row));
+            headers.forEach((item) => item.classList.remove("sorted-asc", "sorted-desc"));
+            header.classList.add(direction === "asc" ? "sorted-asc" : "sorted-desc");
+            currentColumn = index;
+            currentDirection = direction;
+          }});
+        }});
+      }})();
+    </script>
   </body>
 </html>"""
 
