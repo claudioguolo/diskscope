@@ -56,6 +56,12 @@ def extract_collection_date(record: dict) -> str:
     return ""
 
 
+def format_date_br(value: str) -> str:
+    if len(value) >= 10 and value[4] == "-" and value[7] == "-":
+        return f"{value[8:10]}/{value[5:7]}/{value[0:4]}"
+    return value or "-"
+
+
 def clear_records() -> None:
     ensure_parent_dir(OUTPUT_FILE)
     with OUTPUT_FILE.open("w", encoding="utf-8"):
@@ -236,7 +242,7 @@ def render_table(
           <span>{remote_addr}</span>
         </div>
         """.format(
-            received_at=escape(str(record.get("received_at", "-"))),
+            received_at=escape(format_date_br(str(record.get("received_at", "-")))),
             remote_addr=escape(str(record.get("remote_addr", "-"))),
         )
         inventory_block = """
@@ -527,7 +533,7 @@ def render_table(
         </div>
         <div class="card">
           <span>Atualizado em</span>
-          <strong>{escape(utc_now())}</strong>
+          <strong>{escape(format_date_br(utc_now()))}</strong>
         </div>
       </section>
       <section class="toolbar">
