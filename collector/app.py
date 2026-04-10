@@ -62,6 +62,41 @@ def format_date_br(value: str) -> str:
     return value or "-"
 
 
+def abbreviate_os_name(value: str) -> str:
+    os_name = (value or "-").strip()
+    if os_name == "-":
+        return os_name
+
+    if " (" in os_name:
+        os_name = os_name.split(" (", 1)[0].strip()
+
+    parts = os_name.split()
+    if len(parts) >= 5 and parts[:4] == ["Red", "Hat", "Enterprise", "Linux"]:
+        return f"RHEL {' '.join(parts[4:])}".strip()
+
+    if len(parts) >= 2 and parts[0] == "Ubuntu":
+        return f"Ubuntu {parts[1]}".strip()
+
+    if len(parts) >= 2 and parts[0] == "Debian" and parts[1] == "GNU/Linux":
+        if len(parts) >= 3:
+            return f"Debian {parts[2]}".strip()
+        return "Debian"
+
+    if len(parts) >= 3 and parts[:2] == ["Rocky", "Linux"]:
+        return f"Rocky {' '.join(parts[2:])}".strip()
+
+    if len(parts) >= 3 and parts[:2] == ["AlmaLinux", "Kitten"]:
+        return f"AlmaLinux {' '.join(parts[2:])}".strip()
+
+    if len(parts) >= 2 and parts[:2] == ["AlmaLinux", "Linux"]:
+        return f"AlmaLinux {' '.join(parts[2:])}".strip()
+
+    if len(parts) >= 2 and parts[:2] == ["Oracle", "Linux"]:
+        return f"Oracle {' '.join(parts[2:])}".strip()
+
+    return os_name
+
+
 def translate_status_label(status: str) -> str:
     normalized = (status or "").upper()
     if normalized == "WARNING":
@@ -239,30 +274,16 @@ def render_table(
         host_block = """
         <div class="host-cell">
           <strong>{hostname}</strong>
-          <span>{ip_addr}</span>
         </div>
         """.format(
             hostname=escape(str(payload.get("hostname", "-"))),
-            ip_addr=escape(str(payload.get("ip", "-"))),
         )
-        source_block = """
-        <div class="source-cell">
-          <strong>{received_at}</strong>
-          <span>{remote_addr}</span>
-        </div>
-        """.format(
-            received_at=escape(format_date_br(str(record.get("received_at", "-")))),
-            remote_addr=escape(str(record.get("remote_addr", "-"))),
-        )
+        source_block = escape(format_date_br(str(record.get("received_at", "-"))))
         inventory_block = """
         <div class="inventory-cell">
-          <span class="count">{unused_count}</span>
-          <span class="subtle">{total_capacity}</span>
           <span class="subtle">{unused_disks}</span>
         </div>
         """.format(
-            unused_count=escape(str(payload.get("unused_disks_count", "-"))),
-            total_capacity=escape(total_capacity_human),
             unused_disks=escape(unused_disks_text),
         )
 
@@ -271,6 +292,7 @@ def render_table(
             <tr>
               <td>{source}</td>
               <td>{host}</td>
+              <td>{ip_addr}</td>
               <td>{os_name}</td>
               <td>{status}</td>
               <td>{detection_state}</td>
@@ -279,7 +301,8 @@ def render_table(
             """.format(
                 source=source_block,
                 host=host_block,
-                os_name=escape(str(payload.get("os", "-"))),
+                ip_addr=escape(str(payload.get("ip", "-"))),
+                os_name=escape(abbreviate_os_name(str(payload.get("os", "-")))),
                 status=status_html,
                 detection_state=detection_html,
                 inventory=inventory_block,
@@ -287,7 +310,7 @@ def render_table(
         )
 
     tbody = "\n".join(rows) if rows else (
-        '<tr><td colspan="6" class="empty">Nenhum dado coletado ate o momento.</td></tr>'
+        '<tr><td colspan="7" class="empty">Nenhum dado coletado ate o momento.</td></tr>'
     )
 
     total_visible = len(records)
@@ -564,6 +587,7 @@ def render_table(
             <tr>
               <th>Recebimento</th>
               <th>Host</th>
+              <th>IP</th>
               <th>Sistema</th>
               <th>Status</th>
               <th>Coleta</th>
