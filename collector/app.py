@@ -240,7 +240,7 @@ def render_table(
 ) -> str:
     rows = []
 
-    for record in records:
+    for index, record in enumerate(records, start=1):
         payload = record.get("payload", {})
         status = str(payload.get("status", "-"))
         detection_state = str(payload.get("detection_state", "-"))
