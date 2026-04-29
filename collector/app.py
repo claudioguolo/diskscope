@@ -19,8 +19,10 @@ TOKEN = os.getenv("COLLECTOR_TOKEN", "")
 AUTH_HEADER_NAME = os.getenv("AUTH_HEADER_NAME", "Authorization")
 AUTH_HEADER_PREFIX = os.getenv("AUTH_HEADER_PREFIX", "Bearer")
 OUTPUT_FILE = Path(os.getenv("OUTPUT_FILE", "/data/requests.jsonl"))
+SERVICE_OUTPUT_FILE = Path(os.getenv("SERVICE_OUTPUT_FILE", "/data/service-requests.jsonl"))
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
 POST_PATH = os.getenv("POST_PATH", "/disk-alert")
+SERVICE_POST_PATH = os.getenv("SERVICE_POST_PATH", "/service-alert")
 
 
 logging.basicConfig(
@@ -106,12 +108,12 @@ def translate_status_label(status: str) -> str:
     return status or "-"
 
 
-def load_records() -> list[dict]:
-    if not OUTPUT_FILE.exists():
+def load_records(output_file: Path) -> list[dict]:
+    if not output_file.exists():
         return []
 
     records = []
-    with OUTPUT_FILE.open("r", encoding="utf-8") as handler:
+    with output_file.open("r", encoding="utf-8") as handler:
         for line in handler:
             line = line.strip()
             if not line:
@@ -119,7 +121,7 @@ def load_records() -> list[dict]:
             try:
                 records.append(json.loads(line))
             except json.JSONDecodeError:
-                LOGGER.warning("Ignoring invalid JSONL line in %s", OUTPUT_FILE)
+                LOGGER.warning("Ignoring invalid JSONL line in %s", output_file)
 
     records.sort(key=lambda item: item.get("received_at", ""), reverse=True)
     return records
@@ -154,7 +156,13 @@ def filter_records(
     return filtered
 
 
-def build_query_string(status_filter: str, date_from: str, date_to: str, output_format: str = "") -> str:
+def build_query_string(
+    base_path: str,
+    status_filter: str,
+    date_from: str,
+    date_to: str,
+    output_format: str = "",
+) -> str:
     query = {}
 
     if status_filter == "warning":
@@ -171,11 +179,11 @@ def build_query_string(status_filter: str, date_from: str, date_to: str, output_
 
     encoded = urlencode(query)
     if encoded:
-        return f"/?{encoded}"
-    return "/"
+        return f"{base_path}?{encoded}"
+    return base_path
 
 
-def build_csv(records: list[dict]) -> str:
+def build_disk_csv(records: list[dict]) -> str:
     buffer = StringIO()
     writer = DictWriter(
         buffer,
@@ -196,7 +204,7 @@ def build_csv(records: list[dict]) -> str:
     )
     writer.writeheader()
 
-    for index, record in enumerate(records, start=1):
+    for record in records:
         payload = record.get("payload", {})
         unused_disks = payload.get("unused_disks", [])
         if isinstance(unused_disks, list):
@@ -224,120 +232,75 @@ def build_csv(records: list[dict]) -> str:
     return buffer.getvalue()
 
 
-def render_table(
-    records: list[dict],
-    status_filter: str,
-    all_count: int,
-    warning_count: int,
+def build_service_csv(records: list[dict]) -> str:
+    buffer = StringIO()
+    writer = DictWriter(
+        buffer,
+        fieldnames=[
+            "received_at",
+            "remote_addr",
+            "hostname",
+            "ip",
+            "os",
+            "status",
+            "detection_state",
+            "service_count",
+            "service_categories",
+            "service_names",
+            "timestamp",
+        ],
+    )
+    writer.writeheader()
+
+    for record in records:
+        payload = record.get("payload", {})
+        service_categories = payload.get("service_categories", [])
+        service_names = payload.get("service_names", [])
+
+        writer.writerow(
+            {
+                "received_at": record.get("received_at", ""),
+                "remote_addr": record.get("remote_addr", ""),
+                "hostname": payload.get("hostname", ""),
+                "ip": payload.get("ip", ""),
+                "os": payload.get("os", ""),
+                "status": translate_status_label(str(payload.get("status", ""))),
+                "detection_state": payload.get("detection_state", ""),
+                "service_count": payload.get("service_count", ""),
+                "service_categories": ", ".join(str(item) for item in service_categories)
+                if isinstance(service_categories, list)
+                else str(service_categories),
+                "service_names": ", ".join(str(item) for item in service_names)
+                if isinstance(service_names, list)
+                else str(service_names),
+                "timestamp": payload.get("timestamp", ""),
+            }
+        )
+
+    return buffer.getvalue()
+
+
+def render_layout(
+    title: str,
+    subtitle: str,
+    nav_links: str,
+    cards_html: str,
+    toolbar_html: str,
+    form_action: str,
+    filter_hidden_value: str,
     date_from: str,
     date_to: str,
+    clear_filters_href: str,
+    note: str,
+    headers_html: str,
+    tbody: str,
 ) -> str:
-    rows = []
-
-    for index, record in enumerate(records, start=1):
-        payload = record.get("payload", {})
-        status = str(payload.get("status", "-"))
-        detection_state = str(payload.get("detection_state", "-"))
-        unused_disks = payload.get("unused_disks", [])
-        unused_disks_detail = payload.get("unused_disks_detail", [])
-        total_capacity_human = str(
-            payload.get("unused_capacity_total_human")
-            or format_bytes(payload.get("unused_capacity_total_bytes", 0))
-        )
-        if isinstance(unused_disks, list):
-            unused_disks_text = ", ".join(str(item) for item in unused_disks) or "-"
-        else:
-            unused_disks_text = str(unused_disks) or "-"
-
-        if isinstance(unused_disks_detail, list) and unused_disks_detail:
-            detail_parts = []
-            for item in unused_disks_detail:
-                if not isinstance(item, dict):
-                    continue
-                detail_parts.append(
-                    f"{item.get('name', '-')} ({item.get('size_human') or format_bytes(item.get('size_bytes', 0))})"
-                )
-            if detail_parts:
-                unused_disks_text = ", ".join(detail_parts)
-
-        badge_class = "warning" if status.upper() == "WARNING" else "ok"
-        status_html = (
-            f'<span class="badge {escape(badge_class)}">{escape(translate_status_label(status))}</span>'
-        )
-        detection_html = f'<span class="subtle">{escape(detection_state)}</span>'
-        host_block = """
-        <div class="host-cell">
-          <strong>{hostname}</strong>
-        </div>
-        """.format(
-            hostname=escape(str(payload.get("hostname", "-"))),
-        )
-        source_block = escape(format_date_br(str(record.get("received_at", "-"))))
-        inventory_block = """
-        <div class="inventory-cell">
-          <span class="subtle">{unused_disks}</span>
-        </div>
-        """.format(
-            unused_disks=escape(unused_disks_text),
-        )
-
-        rows.append(
-            """
-            <tr>
-              <td data-sort-value="{row_number_value}">{row_number}</td>
-              <td data-sort-value="{received_value}">{source}</td>
-              <td data-sort-value="{hostname_value}">{host}</td>
-              <td data-sort-value="{ip_value}">{ip_addr}</td>
-              <td data-sort-value="{os_value}">{os_name}</td>
-              <td data-sort-value="{status_value}">{status}</td>
-              <td data-sort-value="{detection_value}">{detection_state}</td>
-              <td data-sort-value="{inventory_value}">{inventory}</td>
-            </tr>
-            """.format(
-                row_number=escape(str(index)),
-                row_number_value=escape(str(index)),
-                received_value=escape(str(record.get("received_at", "-"))),
-                source=source_block,
-                hostname_value=escape(str(payload.get("hostname", "-"))),
-                host=host_block,
-                ip_value=escape(str(payload.get("ip", "-"))),
-                ip_addr=escape(str(payload.get("ip", "-"))),
-                os_value=escape(abbreviate_os_name(str(payload.get("os", "-")))),
-                os_name=escape(abbreviate_os_name(str(payload.get("os", "-")))),
-                status_value=escape(translate_status_label(status)),
-                status=status_html,
-                detection_value=escape(detection_state),
-                detection_state=detection_html,
-                inventory_value=escape(unused_disks_text),
-                inventory=inventory_block,
-            )
-        )
-
-    tbody = "\n".join(rows) if rows else (
-        '<tr><td colspan="8" class="empty">Nenhum dado coletado ate o momento.</td></tr>'
-    )
-
-    total_visible = len(records)
-    unused_capacity_total = sum(
-        int(record.get("payload", {}).get("unused_capacity_total_bytes", 0) or 0)
-        for record in records
-    )
-    occurrence_percent = 0.0
-    if all_count > 0:
-        occurrence_percent = (warning_count / all_count) * 100
-    all_link_class = "filter-link active" if status_filter != "warning" else "filter-link"
-    warning_link_class = "filter-link active" if status_filter == "warning" else "filter-link"
-    all_href = build_query_string("all", date_from, date_to)
-    warning_href = build_query_string("warning", date_from, date_to)
-    csv_href = build_query_string(status_filter, date_from, date_to, "csv")
-    clear_filters_href = "/"
-
     return f"""<!DOCTYPE html>
 <html lang="pt-BR">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>DiskScope</title>
+    <title>{escape(title)}</title>
     <style>
       :root {{
         --bg: #f5f1e8;
@@ -378,6 +341,26 @@ def render_table(
         margin: 0;
         color: var(--muted);
         font-size: 0.95rem;
+      }}
+      .nav {{
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin: 16px 0 0;
+      }}
+      .nav a {{
+        padding: 8px 11px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        background: rgba(255, 250, 242, 0.92);
+        color: var(--text);
+        text-decoration: none;
+        font-size: 0.82rem;
+        font-weight: 600;
+      }}
+      .nav a.active {{
+        border-color: rgba(164, 74, 63, 0.4);
+        background: rgba(164, 74, 63, 0.12);
       }}
       .meta {{
         display: flex;
@@ -511,24 +494,16 @@ def render_table(
         background: rgba(164, 74, 63, 0.05);
       }}
       .host-cell,
-      .source-cell,
       .inventory-cell {{
         display: grid;
         gap: 2px;
       }}
-      .host-cell strong,
-      .source-cell strong {{
+      .host-cell strong {{
         font-size: 0.8rem;
       }}
-      .host-cell span,
-      .source-cell span,
       .subtle {{
         color: var(--muted);
         font-size: 0.7rem;
-      }}
-      .inventory-cell .count {{
-        font-weight: 700;
-        font-size: 0.8rem;
       }}
       .badge {{
         display: inline-block;
@@ -563,57 +538,24 @@ def render_table(
   <body>
     <main class="page">
       <section class="hero">
-        <h1>DiskScope</h1>
-        <p class="subtitle">Visao consolidada dos dados enviados pelos scripts executados via Satellite.</p>
+        <h1>{escape(title)}</h1>
+        <p class="subtitle">{escape(subtitle)}</p>
+        <nav class="nav">{nav_links}</nav>
       </section>
-      <section class="meta">
-        <div class="card">
-          <span>Registros visiveis</span>
-          <strong>{total_visible}</strong>
-        </div>
-        <div class="card">
-          <span>Hosts com atencao</span>
-          <strong>{warning_count}</strong>
-        </div>
-        <div class="card">
-          <span>% hosts com ocorrencia</span>
-          <strong>{occurrence_percent:.1f}%</strong>
-        </div>
-        <div class="card">
-          <span>Capacidade nao usada</span>
-          <strong>{escape(format_bytes(unused_capacity_total))}</strong>
-        </div>
-        <div class="card">
-          <span>Atualizado em</span>
-          <strong>{escape(format_date_br(utc_now()))}</strong>
-        </div>
-      </section>
-      <section class="toolbar">
-        <a class="{all_link_class}" href="{all_href}">Todos <strong>{all_count}</strong></a>
-        <a class="{warning_link_class}" href="{warning_href}">Somente com atencao <strong>{warning_count}</strong></a>
-        <a class="filter-link export" href="{csv_href}">Exportar CSV</a>
-      </section>
-      <form class="toolbar-form" method="get" action="/">
-        <input type="hidden" name="status" value="{escape(status_filter if status_filter == 'warning' else 'all')}">
+      <section class="meta">{cards_html}</section>
+      <section class="toolbar">{toolbar_html}</section>
+      <form class="toolbar-form" method="get" action="{escape(form_action)}">
+        <input type="hidden" name="status" value="{escape(filter_hidden_value)}">
         <input type="date" name="date_from" value="{escape(date_from)}" aria-label="Data inicial">
         <input type="date" name="date_to" value="{escape(date_to)}" aria-label="Data final">
         <button type="submit">Filtrar por data</button>
-        <a href="{clear_filters_href}">Limpar filtros</a>
+        <a href="{escape(clear_filters_href)}">Limpar filtros</a>
       </form>
-      <p class="table-note">A tabela abaixo exibe todos os registros retornados pelo filtro atual, sem paginacao.</p>
+      <p class="table-note">{escape(note)}</p>
       <section class="table-wrap">
         <table>
           <thead>
-            <tr>
-              <th class="sortable">#</th>
-              <th class="sortable">Recebimento</th>
-              <th class="sortable">Host</th>
-              <th class="sortable">IP</th>
-              <th class="sortable">Sistema</th>
-              <th class="sortable">Status</th>
-              <th class="sortable">Coleta</th>
-              <th class="sortable">Discos</th>
-            </tr>
+            <tr>{headers_html}</tr>
           </thead>
           <tbody id="records-table-body">
             {tbody}
@@ -672,14 +614,304 @@ def render_table(
 </html>"""
 
 
+def render_nav(active_path: str) -> str:
+    disk_class = "active" if active_path == "/" else ""
+    service_class = "active" if active_path == "/services" else ""
+    return (
+        f'<a class="{disk_class}" href="/">Monitor de discos</a>'
+        f'<a class="{service_class}" href="/services">Uso por servicos</a>'
+    )
+
+
+def render_disk_table(
+    records: list[dict],
+    status_filter: str,
+    all_count: int,
+    warning_count: int,
+    date_from: str,
+    date_to: str,
+) -> str:
+    rows = []
+
+    for index, record in enumerate(records, start=1):
+        payload = record.get("payload", {})
+        status = str(payload.get("status", "-"))
+        detection_state = str(payload.get("detection_state", "-"))
+        unused_disks = payload.get("unused_disks", [])
+        unused_disks_detail = payload.get("unused_disks_detail", [])
+        total_capacity_human = str(
+            payload.get("unused_capacity_total_human")
+            or format_bytes(payload.get("unused_capacity_total_bytes", 0))
+        )
+        if isinstance(unused_disks, list):
+            unused_disks_text = ", ".join(str(item) for item in unused_disks) or "-"
+        else:
+            unused_disks_text = str(unused_disks) or "-"
+
+        if isinstance(unused_disks_detail, list) and unused_disks_detail:
+            detail_parts = []
+            for item in unused_disks_detail:
+                if not isinstance(item, dict):
+                    continue
+                detail_parts.append(
+                    f"{item.get('name', '-')} ({item.get('size_human') or format_bytes(item.get('size_bytes', 0))})"
+                )
+            if detail_parts:
+                unused_disks_text = ", ".join(detail_parts)
+
+        badge_class = "warning" if status.upper() == "WARNING" else "ok"
+        status_html = (
+            f'<span class="badge {escape(badge_class)}">{escape(translate_status_label(status))}</span>'
+        )
+        detection_html = f'<span class="subtle">{escape(detection_state)}</span>'
+        host_block = (
+            '<div class="host-cell"><strong>{hostname}</strong></div>'.format(
+                hostname=escape(str(payload.get("hostname", "-")))
+            )
+        )
+        inventory_block = (
+            '<div class="inventory-cell"><span class="subtle">{unused_disks}</span></div>'.format(
+                unused_disks=escape(unused_disks_text)
+            )
+        )
+
+        rows.append(
+            """
+            <tr>
+              <td data-sort-value="{row_number_value}">{row_number}</td>
+              <td data-sort-value="{received_value}">{source}</td>
+              <td data-sort-value="{hostname_value}">{host}</td>
+              <td data-sort-value="{ip_value}">{ip_addr}</td>
+              <td data-sort-value="{os_value}">{os_name}</td>
+              <td data-sort-value="{status_value}">{status}</td>
+              <td data-sort-value="{detection_value}">{detection_state}</td>
+              <td data-sort-value="{inventory_value}">{inventory}</td>
+            </tr>
+            """.format(
+                row_number=escape(str(index)),
+                row_number_value=escape(str(index)),
+                received_value=escape(str(record.get("received_at", "-"))),
+                source=escape(format_date_br(str(record.get("received_at", "-")))),
+                hostname_value=escape(str(payload.get("hostname", "-"))),
+                host=host_block,
+                ip_value=escape(str(payload.get("ip", "-"))),
+                ip_addr=escape(str(payload.get("ip", "-"))),
+                os_value=escape(abbreviate_os_name(str(payload.get("os", "-")))),
+                os_name=escape(abbreviate_os_name(str(payload.get("os", "-")))),
+                status_value=escape(translate_status_label(status)),
+                status=status_html,
+                detection_value=escape(detection_state),
+                detection_state=detection_html,
+                inventory_value=escape(unused_disks_text),
+                inventory=inventory_block,
+            )
+        )
+
+    tbody = "\n".join(rows) if rows else (
+        '<tr><td colspan="8" class="empty">Nenhum dado coletado ate o momento.</td></tr>'
+    )
+
+    total_visible = len(records)
+    unused_capacity_total = sum(
+        int(record.get("payload", {}).get("unused_capacity_total_bytes", 0) or 0)
+        for record in records
+    )
+    occurrence_percent = 0.0
+    if all_count > 0:
+        occurrence_percent = (warning_count / all_count) * 100
+    all_link_class = "filter-link active" if status_filter != "warning" else "filter-link"
+    warning_link_class = "filter-link active" if status_filter == "warning" else "filter-link"
+    all_href = build_query_string("/", "all", date_from, date_to)
+    warning_href = build_query_string("/", "warning", date_from, date_to)
+    csv_href = build_query_string("/", status_filter, date_from, date_to, "csv")
+
+    cards_html = "".join(
+        [
+            f'<div class="card"><span>Registros visiveis</span><strong>{total_visible}</strong></div>',
+            f'<div class="card"><span>Hosts com atencao</span><strong>{warning_count}</strong></div>',
+            f'<div class="card"><span>% hosts com ocorrencia</span><strong>{occurrence_percent:.1f}%</strong></div>',
+            f'<div class="card"><span>Capacidade nao usada</span><strong>{escape(format_bytes(unused_capacity_total))}</strong></div>',
+            f'<div class="card"><span>Atualizado em</span><strong>{escape(format_date_br(utc_now()))}</strong></div>',
+        ]
+    )
+    toolbar_html = (
+        f'<a class="{all_link_class}" href="{all_href}">Todos <strong>{all_count}</strong></a>'
+        f'<a class="{warning_link_class}" href="{warning_href}">Somente com atencao <strong>{warning_count}</strong></a>'
+        f'<a class="filter-link export" href="{csv_href}">Exportar CSV</a>'
+    )
+    headers_html = (
+        '<th class="sortable">#</th>'
+        '<th class="sortable">Recebimento</th>'
+        '<th class="sortable">Host</th>'
+        '<th class="sortable">IP</th>'
+        '<th class="sortable">Sistema</th>'
+        '<th class="sortable">Status</th>'
+        '<th class="sortable">Coleta</th>'
+        '<th class="sortable">Discos</th>'
+    )
+
+    return render_layout(
+        title="DiskScope",
+        subtitle="Visao consolidada dos dados enviados pelos scripts executados via Satellite.",
+        nav_links=render_nav("/"),
+        cards_html=cards_html,
+        toolbar_html=toolbar_html,
+        form_action="/",
+        filter_hidden_value=status_filter if status_filter == "warning" else "all",
+        date_from=date_from,
+        date_to=date_to,
+        clear_filters_href="/",
+        note="A tabela abaixo exibe todos os registros retornados pelo filtro atual, sem paginacao.",
+        headers_html=headers_html,
+        tbody=tbody,
+    )
+
+
+def render_service_table(
+    records: list[dict],
+    status_filter: str,
+    all_count: int,
+    warning_count: int,
+    date_from: str,
+    date_to: str,
+) -> str:
+    rows = []
+
+    for index, record in enumerate(records, start=1):
+        payload = record.get("payload", {})
+        status = str(payload.get("status", "-"))
+        detection_state = str(payload.get("detection_state", "-"))
+        service_count = int(payload.get("service_count", 0) or 0)
+        services = payload.get("services", [])
+        service_categories = payload.get("service_categories", [])
+        service_names = payload.get("service_names", [])
+
+        service_text = "-"
+        if isinstance(services, list) and services:
+            parts = []
+            for item in services:
+                if not isinstance(item, dict):
+                    continue
+                parts.append(f"{item.get('name', '-')} [{item.get('category', '-')}]")
+            if parts:
+                service_text = ", ".join(parts)
+        elif isinstance(service_names, list) and service_names:
+            service_text = ", ".join(str(item) for item in service_names)
+
+        categories_text = ", ".join(str(item) for item in service_categories) if isinstance(service_categories, list) else "-"
+        badge_class = "warning" if status.upper() == "WARNING" else "ok"
+        status_html = (
+            f'<span class="badge {escape(badge_class)}">{escape(translate_status_label(status))}</span>'
+        )
+        detection_html = f'<span class="subtle">{escape(detection_state)}</span>'
+        host_block = (
+            '<div class="host-cell"><strong>{hostname}</strong></div>'.format(
+                hostname=escape(str(payload.get("hostname", "-")))
+            )
+        )
+        inventory_block = (
+            '<div class="inventory-cell"><strong>{count} servicos</strong><span class="subtle">{details}</span></div>'.format(
+                count=escape(str(service_count)),
+                details=escape(service_text),
+            )
+        )
+
+        rows.append(
+            """
+            <tr>
+              <td data-sort-value="{row_number_value}">{row_number}</td>
+              <td data-sort-value="{received_value}">{source}</td>
+              <td data-sort-value="{hostname_value}">{host}</td>
+              <td data-sort-value="{ip_value}">{ip_addr}</td>
+              <td data-sort-value="{os_value}">{os_name}</td>
+              <td data-sort-value="{status_value}">{status}</td>
+              <td data-sort-value="{detection_value}">{detection_state}</td>
+              <td data-sort-value="{category_value}">{categories}</td>
+              <td data-sort-value="{inventory_value}">{inventory}</td>
+            </tr>
+            """.format(
+                row_number=escape(str(index)),
+                row_number_value=escape(str(index)),
+                received_value=escape(str(record.get("received_at", "-"))),
+                source=escape(format_date_br(str(record.get("received_at", "-")))),
+                hostname_value=escape(str(payload.get("hostname", "-"))),
+                host=host_block,
+                ip_value=escape(str(payload.get("ip", "-"))),
+                ip_addr=escape(str(payload.get("ip", "-"))),
+                os_value=escape(abbreviate_os_name(str(payload.get("os", "-")))),
+                os_name=escape(abbreviate_os_name(str(payload.get("os", "-")))),
+                status_value=escape(translate_status_label(status)),
+                status=status_html,
+                detection_value=escape(detection_state),
+                detection_state=detection_html,
+                category_value=escape(categories_text),
+                categories=escape(categories_text or "-"),
+                inventory_value=escape(service_text),
+                inventory=inventory_block,
+            )
+        )
+
+    tbody = "\n".join(rows) if rows else (
+        '<tr><td colspan="9" class="empty">Nenhum dado coletado ate o momento.</td></tr>'
+    )
+
+    total_visible = len(records)
+    hosts_without_services = warning_count
+    service_total = sum(int(record.get("payload", {}).get("service_count", 0) or 0) for record in records)
+    average_services = (service_total / total_visible) if total_visible else 0.0
+    all_link_class = "filter-link active" if status_filter != "warning" else "filter-link"
+    warning_link_class = "filter-link active" if status_filter == "warning" else "filter-link"
+    all_href = build_query_string("/services", "all", date_from, date_to)
+    warning_href = build_query_string("/services", "warning", date_from, date_to)
+    csv_href = build_query_string("/services", status_filter, date_from, date_to, "csv")
+
+    cards_html = "".join(
+        [
+            f'<div class="card"><span>Registros visiveis</span><strong>{total_visible}</strong></div>',
+            f'<div class="card"><span>Hosts sem servicos detectados</span><strong>{hosts_without_services}</strong></div>',
+            f'<div class="card"><span>Total de servicos mapeados</span><strong>{service_total}</strong></div>',
+            f'<div class="card"><span>Media por host</span><strong>{average_services:.1f}</strong></div>',
+            f'<div class="card"><span>Atualizado em</span><strong>{escape(format_date_br(utc_now()))}</strong></div>',
+        ]
+    )
+    toolbar_html = (
+        f'<a class="{all_link_class}" href="{all_href}">Todos <strong>{all_count}</strong></a>'
+        f'<a class="{warning_link_class}" href="{warning_href}">Somente com atencao <strong>{warning_count}</strong></a>'
+        f'<a class="filter-link export" href="{csv_href}">Exportar CSV</a>'
+    )
+    headers_html = (
+        '<th class="sortable">#</th>'
+        '<th class="sortable">Recebimento</th>'
+        '<th class="sortable">Host</th>'
+        '<th class="sortable">IP</th>'
+        '<th class="sortable">Sistema</th>'
+        '<th class="sortable">Status</th>'
+        '<th class="sortable">Coleta</th>'
+        '<th class="sortable">Categorias</th>'
+        '<th class="sortable">Servicos</th>'
+    )
+
+    return render_layout(
+        title="HostScope",
+        subtitle="Inventario de servicos em execucao para identificar hosts ativos sem carga util.",
+        nav_links=render_nav("/services"),
+        cards_html=cards_html,
+        toolbar_html=toolbar_html,
+        form_action="/services",
+        filter_hidden_value=status_filter if status_filter == "warning" else "all",
+        date_from=date_from,
+        date_to=date_to,
+        clear_filters_href="/services",
+        note="Hosts em ATENCAO sao os que nao apresentaram servicos de aplicacao, banco, container ou mensageria detectados.",
+        headers_html=headers_html,
+        tbody=tbody,
+    )
+
+
 class CollectorHandler(BaseHTTPRequestHandler):
-    server_version = "DiskCollector/1.0"
+    server_version = "DiskCollector/2.0"
 
-    def do_POST(self) -> None:
-        if self.path != POST_PATH:
-            self.respond_json(HTTPStatus.NOT_FOUND, {"error": "path_not_found"})
-            return
-
+    def handle_collector_post(self, output_file: Path, collector_name: str) -> None:
         if TOKEN:
             expected = f"{AUTH_HEADER_PREFIX} {TOKEN}".strip()
             received = self.headers.get(AUTH_HEADER_NAME, "")
@@ -708,17 +940,28 @@ class CollectorHandler(BaseHTTPRequestHandler):
             "payload": payload,
         }
 
-        ensure_parent_dir(OUTPUT_FILE)
-        with OUTPUT_FILE.open("a", encoding="utf-8") as handler:
+        ensure_parent_dir(output_file)
+        with output_file.open("a", encoding="utf-8") as handler:
             handler.write(json.dumps(record, ensure_ascii=True) + "\n")
 
         LOGGER.info(
-            "Payload received from host=%s status=%s unused_disks_count=%s",
+            "%s payload received from host=%s status=%s",
+            collector_name,
             payload.get("hostname", "unknown"),
             payload.get("status", "unknown"),
-            payload.get("unused_disks_count", "unknown"),
         )
         self.respond_json(HTTPStatus.OK, {"result": "accepted"})
+
+    def do_POST(self) -> None:
+        if self.path == POST_PATH:
+            self.handle_collector_post(OUTPUT_FILE, "disk")
+            return
+
+        if self.path == SERVICE_POST_PATH:
+            self.handle_collector_post(SERVICE_OUTPUT_FILE, "service")
+            return
+
+        self.respond_json(HTTPStatus.NOT_FOUND, {"error": "path_not_found"})
 
     def do_GET(self) -> None:
         parsed = urlparse(self.path)
@@ -729,17 +972,44 @@ class CollectorHandler(BaseHTTPRequestHandler):
             date_from = query.get("date_from", [""])[0]
             date_to = query.get("date_to", [""])[0]
             output_format = query.get("format", ["html"])[0].lower()
-            all_records = load_records()
+            all_records = load_records(OUTPUT_FILE)
             visible_records = filter_records(all_records, status_filter, date_from, date_to)
 
             if output_format == "csv":
-                self.respond_csv(HTTPStatus.OK, build_csv(visible_records))
+                self.respond_csv(HTTPStatus.OK, build_disk_csv(visible_records), "diskscope.csv")
                 return
 
             warning_count = len(filter_records(all_records, "warning", date_from, date_to))
             self.respond_html(
                 HTTPStatus.OK,
-                render_table(
+                render_disk_table(
+                    visible_records,
+                    status_filter,
+                    len(filter_records(all_records, "all", date_from, date_to)),
+                    warning_count,
+                    date_from,
+                    date_to,
+                ),
+            )
+            return
+
+        if parsed.path == "/services":
+            query = parse_qs(parsed.query)
+            status_filter = query.get("status", ["all"])[0].lower()
+            date_from = query.get("date_from", [""])[0]
+            date_to = query.get("date_to", [""])[0]
+            output_format = query.get("format", ["html"])[0].lower()
+            all_records = load_records(SERVICE_OUTPUT_FILE)
+            visible_records = filter_records(all_records, status_filter, date_from, date_to)
+
+            if output_format == "csv":
+                self.respond_csv(HTTPStatus.OK, build_service_csv(visible_records), "hostscope.csv")
+                return
+
+            warning_count = len(filter_records(all_records, "warning", date_from, date_to))
+            self.respond_html(
+                HTTPStatus.OK,
+                render_service_table(
                     visible_records,
                     status_filter,
                     len(filter_records(all_records, "all", date_from, date_to)),
@@ -751,7 +1021,15 @@ class CollectorHandler(BaseHTTPRequestHandler):
             return
 
         if parsed.path == "/health":
-            self.respond_json(HTTPStatus.OK, {"status": "ok", "time": utc_now()})
+            self.respond_json(
+                HTTPStatus.OK,
+                {
+                    "status": "ok",
+                    "time": utc_now(),
+                    "disk_post_path": POST_PATH,
+                    "service_post_path": SERVICE_POST_PATH,
+                },
+            )
             return
 
         self.respond_json(HTTPStatus.NOT_FOUND, {"error": "path_not_found"})
@@ -775,21 +1053,27 @@ class CollectorHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(response)
 
-    def respond_csv(self, status: HTTPStatus, csv_content: str) -> None:
+    def respond_csv(self, status: HTTPStatus, csv_content: str, filename: str) -> None:
         response = csv_content.encode("utf-8")
         self.send_response(status.value)
         self.send_header("Content-Type", "text/csv; charset=utf-8")
-        self.send_header("Content-Disposition", 'attachment; filename="diskscope.csv"')
+        self.send_header("Content-Disposition", f'attachment; filename="{filename}"')
         self.send_header("Content-Length", str(len(response)))
         self.end_headers()
         self.wfile.write(response)
 
 
-
 def main() -> None:
     ensure_parent_dir(OUTPUT_FILE)
+    ensure_parent_dir(SERVICE_OUTPUT_FILE)
     server = ThreadingHTTPServer((HOST, PORT), CollectorHandler)
-    LOGGER.info("Starting collector on %s:%s path=%s", HOST, PORT, POST_PATH)
+    LOGGER.info(
+        "Starting collector on %s:%s disk_path=%s service_path=%s",
+        HOST,
+        PORT,
+        POST_PATH,
+        SERVICE_POST_PATH,
+    )
     server.serve_forever()
 
 

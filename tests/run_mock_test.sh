@@ -3,8 +3,14 @@
 set -eu
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-CAPTURE_FILE="${ROOT_DIR}/tests/mock_payload.json"
-OUTPUT_FILE="${ROOT_DIR}/tests/mock_output.txt"
+CAPTURE_FILE="$(mktemp)"
+OUTPUT_FILE="$(mktemp)"
+
+cleanup() {
+    rm -f "${CAPTURE_FILE}" "${OUTPUT_FILE}"
+}
+
+trap cleanup EXIT
 
 chmod +x "${ROOT_DIR}"/tests/mockbin/*
 

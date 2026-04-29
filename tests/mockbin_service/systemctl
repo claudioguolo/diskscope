@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+
+set -eu
+
+if [ "${1:-}" = "is-active" ] && [ "${2:-}" = "--quiet" ]; then
+    case "${3:-}" in
+        nginx.service|postgresql.service|docker.service)
+            exit 0
+            ;;
+        *)
+            exit 3
+            ;;
+    esac
+fi
+
+exit 1

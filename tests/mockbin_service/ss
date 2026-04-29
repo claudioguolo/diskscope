@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+
+set -eu
+
+printf 'tcp LISTEN 0 128 0.0.0.0:80 0.0.0.0:* users:(("nginx",pid=1,fd=6))\n'
+printf 'tcp LISTEN 0 128 0.0.0.0:5432 0.0.0.0:* users:(("postgres",pid=2,fd=7))\n'

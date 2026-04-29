@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+
+set -eu
+
+capture_file="${MOCK_CURL_CAPTURE:?}"
+data_payload=""
+output_file=""
+http_code="200"
+
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --data)
+            data_payload="$2"
+            shift 2
+            ;;
+        --output)
+            output_file="$2"
+            shift 2
+            ;;
+        --write-out)
+            shift 2
+            ;;
+        *)
+            shift
+            ;;
+    esac
+done
+
+printf '%s\n' "$data_payload" >"$capture_file"
+
+if [ -n "$output_file" ]; then
+    : >"$output_file"
+fi
+
+printf '%s' "$http_code"

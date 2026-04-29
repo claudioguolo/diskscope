@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+
+set -eu
+
+case "${1:-}" in
+    -f)
+        printf 'host-servicos.exemplo.local\n'
+        ;;
+    -I)
+        printf '10.20.30.40 \n'
+        ;;
+    *)
+        printf 'host-servicos\n'
+        ;;
+esac

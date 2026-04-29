@@ -1,11 +1,12 @@
 # DiskScope
 
-Coletor de discos nao utilizados para execucao via Red Hat Satellite.
+Coletor de inventario para execucao via Red Hat Satellite.
 
-Projeto com duas partes:
+O projeto agora tem duas trilhas independentes:
 
-- `script.sh`: script Bash para rodar via Red Hat Satellite e identificar discos nao utilizados.
-- `docker-compose.yml`: sobe um coletor HTTP simples para receber os JSONs enviados pelo script.
+- `script.sh`: monitor de discos nao utilizados, mantido no formato atual.
+- `service_report.sh`: inventario de servicos ativos para identificar hosts ligados, mas sem carga util detectada.
+- `docker-compose.yml`: sobe um coletor HTTP unico com dois endpoints e dois paineis.
 
 ## Estrutura
 
@@ -15,6 +16,9 @@ Projeto com duas partes:
 │   ├── app.py
 │   └── Dockerfile
 ├── tests/
+│   ├── mockbin_service/
+│   └── run_service_mock_test.sh
+├── tests/
 │   ├── mockbin/
 │   └── run_mock_test.sh
 ├── docker-compose.yml
@@ -22,7 +26,11 @@ Projeto com duas partes:
 └── script.sh
 ```
 
-## Script shell
+## Parte 1: monitor de discos
+
+O fluxo atual continua igual.
+
+### Script shell
 
 Parametros principais via ambiente:
 
@@ -79,6 +87,47 @@ O script imprime uma linha final em formato simples, adequada para leitura no re
 RESULT=ATENCAO UNUSED_DISKS=/dev/sdb UNUSED_CAPACITY=53.7 GB HTTP_CODE=200 DETECTION_STATE=ok
 ```
 
+## Parte 2: inventario de servicos do host
+
+O novo fluxo segue a mesma ideia do monitor de disco, mas envia um retrato do que o host esta efetivamente executando.
+
+Ele tenta identificar:
+
+- servidores web como Apache, Nginx, HAProxy e Traefik
+- bancos e caches como PostgreSQL, MySQL/MariaDB, MongoDB e Redis
+- runtimes e workloads de containers como Docker, containerd, Podman e kubelet
+- mensageria como RabbitMQ
+
+O host recebe `WARNING` quando nenhum servico relevante e detectado. Isso ajuda a localizar maquinas ligadas sem aplicacao, banco, container ou fila em uso aparente.
+
+### Script shell de servicos
+
+Parametros principais via ambiente:
+
+- `COLLECTOR_URL`: URL completa do endpoint.
+- `COLLECTOR_SCHEME`, `COLLECTOR_HOST`, `COLLECTOR_PORT`, `COLLECTOR_PATH`: alternativa para montar a URL.
+- `TOKEN`: token de autenticacao.
+- `CONNECT_TIMEOUT`, `MAX_TIME`, `RETRY_COUNT`, `RETRY_DELAY`, `RETRY_MAX_TIME`: controles de timeout e retry.
+- `PROXY_URL`: proxy HTTP/HTTPS explicito para o `curl`.
+- `LOG_ENABLED=1`: habilita log.
+- `LOG_FILE=/caminho/arquivo.log`: grava log em arquivo; sem isso, usa `stderr`.
+
+Exemplo de execucao:
+
+```bash
+chmod +x service_report.sh
+COLLECTOR_URL="http://coletor.exemplo.local:8000/service-alert" \
+TOKEN="SEU_TOKEN_AQUI" \
+LOG_ENABLED=1 \
+./service_report.sh
+```
+
+Exemplo de retorno:
+
+```text
+RESULT=OK SERVICE_COUNT=4 SERVICES=Nginx,PostgreSQL,Docker Engine,Containers Docker em execucao HTTP_CODE=200 DETECTION_STATE=ok
+```
+
 ## Coletor containerizado
 
 Subir o coletor:
@@ -94,34 +143,40 @@ Validar saude:
 curl -s http://127.0.0.1:8000/health
 ```
 
-Abrir a interface web com tabela dos dados coletados:
+Abrir os paineis:
 
 ```bash
 curl -s http://127.0.0.1:8000/
+curl -s http://127.0.0.1:8000/services
 ```
 
 No navegador, acessar:
 
 ```text
 http://127.0.0.1:8000/
+http://127.0.0.1:8000/services
 ```
+
+Endpoints de ingestao:
+
+- discos: `/disk-alert`
+- servicos: `/service-alert`
 
 Os payloads recebidos ficam em:
 
-- `./data/requests.jsonl`
+- `./data/requests.jsonl` para discos
+- `./data/service-requests.jsonl` para servicos
 
 Cada linha contem um JSON com:
 
 - horario de recebimento
 - IP remoto
-- payload original enviado pelo script
-- lista de discos nao utilizados com capacidade por disco
-- soma total de capacidade nao utilizada por host
+- payload original enviado pelo script correspondente
 
 Na interface web, o painel tambem mostra:
 
-- percentual de hosts com ocorrencia de discos nao utilizados
-- capacidade total nao utilizada considerando os registros filtrados
+- em discos: percentual de hosts com ocorrencia e capacidade total nao utilizada
+- em servicos: hosts sem servicos detectados, total de servicos mapeados e media por host
 
 ## Testes locais
 
@@ -129,6 +184,7 @@ Teste rapido do script com mocks:
 
 ```bash
 bash tests/run_mock_test.sh
+bash tests/run_service_mock_test.sh
 ```
 
 ## Template visual

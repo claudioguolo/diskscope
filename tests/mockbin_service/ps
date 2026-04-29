@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+
+set -eu
+
+printf 'nginx\n'
+printf 'postgres\n'
+printf 'dockerd\n'

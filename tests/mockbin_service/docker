@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+
+set -eu
+
+if [ "${1:-}" = "ps" ] && [ "${2:-}" = "-q" ]; then
+    printf 'abc123\n'
+    exit 0
+fi
+
+exit 0
