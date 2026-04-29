@@ -23,10 +23,11 @@ bash "${ROOT_DIR}/service_report.sh" >"${OUTPUT_FILE}"
 grep -q 'RESULT=OK' "${OUTPUT_FILE}"
 grep -q 'SERVICE_COUNT=' "${OUTPUT_FILE}"
 grep -q '"status": "OK"' "${CAPTURE_FILE}"
-grep -q '"service_count": 6' "${CAPTURE_FILE}"
+grep -q '"service_count": 7' "${CAPTURE_FILE}"
 grep -q '"name":"Nginx"' "${CAPTURE_FILE}"
 grep -q '"name":"PostgreSQL"' "${CAPTURE_FILE}"
 grep -q '"name":"Docker Engine"' "${CAPTURE_FILE}"
 grep -q '"name":"Containers Docker em execucao"' "${CAPTURE_FILE}"
+grep -q '"name":"Java Application Service"' "${CAPTURE_FILE}"
 
 printf 'service mock test ok\n'

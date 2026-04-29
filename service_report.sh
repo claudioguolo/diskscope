@@ -184,6 +184,30 @@ detect_web_services() {
     fi
 }
 
+detect_java_services() {
+    if command_exists systemctl; then
+        systemctl_is_active "jboss.service" && append_service "java" "JBoss" "systemd:jboss.service"
+        systemctl_is_active "wildfly.service" && append_service "java" "WildFly" "systemd:wildfly.service"
+        systemctl_is_active "tomcat.service" && append_service "java" "Tomcat" "systemd:tomcat.service"
+        systemctl_is_active "tomcat9.service" && append_service "java" "Tomcat" "systemd:tomcat9.service"
+        systemctl_is_active "tomcat10.service" && append_service "java" "Tomcat" "systemd:tomcat10.service"
+    fi
+
+    if command_exists ps; then
+        process_exists '^(jboss|wildfly)$' && append_service "java" "JBoss/WildFly" "process:jboss|wildfly"
+        process_exists '^tomcat$' && append_service "java" "Tomcat" "process:tomcat"
+        process_exists '^java$' && append_service "java" "Java Application Service" "process:java"
+
+        if ps -eo args= 2>/dev/null | grep -Eiq '(org\.jboss|wildfly|catalina\.start|tomcat|java .*-jar)'; then
+            append_service "java" "Java Application Service" "process_args:java"
+        fi
+    fi
+
+    if command_exists ss; then
+        socket_exists ':(8080|8443|9990)\b' && append_service "java" "Java Application Listener" "socket:8080,8443,9990"
+    fi
+}
+
 detect_database_services() {
     if command_exists systemctl; then
         systemctl_is_active "mysqld.service" && append_service "database" "MySQL/MariaDB" "systemd:mysqld.service"
@@ -259,6 +283,7 @@ collect_service_inventory() {
     DETECTION_ERRORS=()
 
     detect_web_services
+    detect_java_services
     detect_database_services
     detect_container_services
     detect_message_services

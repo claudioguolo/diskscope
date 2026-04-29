@@ -5,3 +5,4 @@ set -eu
 printf 'nginx\n'
 printf 'postgres\n'
 printf 'dockerd\n'
+printf 'java\n'
